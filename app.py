@@ -11,6 +11,12 @@ load_dotenv()
 app = Flask(__name__)
 DATABASE = 'database.db'
 
+# Cargar variables de entorno desde el archivo .env
+load_dotenv()
+
+app = Flask(__name__)
+DATABASE = 'database.db'
+
 class ApisNetPe:
     BASE_URL = "https://api.apis.net.pe"
 
@@ -24,15 +30,37 @@ class ApisNetPe:
             "Referer": "https://apis.net.pe/api-tipo-cambio.html"
         }
 
-        response = requests.get(url, headers=headers, params=params)
-        if response.status_code == 200:
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status() 
+            print(response) # Verifica si hay un error HTTP
             return response.json()
-        else:
-            logging.warning(f"API error: {response.status_code} - {response.text}")
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Error en la solicitud API: {e}")
             return {}
 
     def get_person(self, dni: str) -> dict:
         return self._get("/v2/reniec/dni", {"numero": dni})
+
+    def get_ruc(self, ruc: str) -> dict:
+        return self._get("/v2/sunat/ruc", {"numero": ruc})
+
+@app.route('/ruc', methods=['GET', 'POST'])
+def consultar_ruc():
+    error = None
+    ruc_data = None
+
+    if request.method == 'POST':
+        ruc = request.form.get('ruc')
+        if ruc:
+            ruc_data = api_consultas.get_ruc(ruc)
+            if not ruc_data:
+                error = 'No se pudo obtener datos del RUC. Verifica el número o intenta nuevamente.'
+            elif 'nombre' not in ruc_data:
+                error = 'Datos incompletos en la respuesta de la API.'
+    
+    return render_template('ruc.html', ruc_data=ruc_data, error=error)
+
 
 # Leer el token desde el archivo .env
 APIS_TOKEN = os.getenv('APIS_TOKEN')
